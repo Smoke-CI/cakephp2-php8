@@ -514,6 +514,31 @@ class CakeSession {
 		static::renew();
 	}
 
+	/**
+	 * Sets instance of HandlerInterface or string as session handler 
+	 * based on the PHP version 
+	 * 
+	 * @param array &$sessionConfig
+	 * 
+	 * @return void
+	 */
+	private static function setSessionHandler(array &$sessionConfig): void
+	{
+		// For PHP 8.* session handler should be an implementation of handler interface
+		if (version_compare(PHP_VERSION, '8.0.0', '>=')) {
+			$sessionConfig['ini']['session.save_handler'] = function (): string {
+				return "";
+			};
+			return;
+		// In PHP7.2.0+ session.save_handler can't be set to 'user' by the user.
+		// https://github.com/php/php-src/commit/a93a51c3bf4ea1638ce0adc4a899cb93531b9f0d
+		} else if (version_compare(PHP_VERSION, '7.2.0', '>=')) {
+			unset($sessionConfig['ini']['session.save_handler']);
+			return;
+		} 
+		$sessionConfig['ini']['session.save_handler'] = 'user';
+	}
+
 /**
  * Helper method to initialize a session, based on CakePHP core settings.
  *
@@ -551,13 +576,7 @@ class CakeSession {
 		static::$_cookieName = $sessionConfig['ini']['session.name'];
 
 		if (!empty($sessionConfig['handler'])) {
-			$sessionConfig['ini']['session.save_handler'] = 'user';
-
-			// In PHP7.2.0+ session.save_handler can't be set to 'user' by the user.
-			// https://github.com/php/php-src/commit/a93a51c3bf4ea1638ce0adc4a899cb93531b9f0d
-			if (version_compare(PHP_VERSION, '7.2.0', '>=')) {
-				unset($sessionConfig['ini']['session.save_handler']);
-			}
+			static::setSessionHandler($sessionConfig);
 		} elseif (!empty($sessionConfig['session.save_path']) && Configure::read('debug')) {
 			if (!is_dir($sessionConfig['session.save_path'])) {
 				mkdir($sessionConfig['session.save_path'], 0775, true);
